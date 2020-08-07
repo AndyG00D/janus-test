@@ -189,7 +189,7 @@ Janus.init({
 
                                         info.html(
                                             info.html() + '</br> <hr>' +
-                                            `${window.location.hostname}:${window.location.port}\/receiver.html?id=${myid}&mypvtid=${mypvtid}`
+                                            `<a target="_blank" href="${window.location.protocol}//${window.location.hostname}:${window.location.port}\/receiver.html?id=${myid}&mypvtid=${mypvtid}">open subscriber</a>`
                                         );
 
                                         Janus.log("Successfully joined room " + msg["room"] + " with ID " + myid);

@@ -23,15 +23,17 @@ var opaqueId = "videoroomtest-" + Janus.randomString(12);
 
 var started = false;
 
-var myroom = 1234;	// Demo room
+var myroom = null;	// Demo room
 var myusername = null;
 var myid = null;
 var mystream = null;
+let roomList = [];
 // We use this other ID just to map our subscriptions to us
-var mypvtid = null;
+// var mypvtid = null;
 
 var feeds = [];
 var bitrateTimer = [];
+var remoteFeed = null;
 
 var doSimulcast = (getQueryStringValue("simulcast") === "yes" || getQueryStringValue("simulcast") === "true");
 
@@ -55,10 +57,8 @@ $(document).ready(function () {
                 {
                     server: server,
                     success: function () {
-                        // Attach to video room test plugin
-                        myid = getQueryStringValue("id");
-                        mypvtid = getQueryStringValue("mypvtid");
-                        newRemoteFeed(myid, "sbsdbv", "opus", "vp8");
+                        getList();
+
                     },
                     error: function (error) {
                         Janus.error(error);
@@ -75,48 +75,71 @@ $(document).ready(function () {
     });
 });
 
-function newRemoteFeed(id, display, audio, video) {
+function prepareChoseRoomList() {
+    const roomlistBlock = $('#room_list');
+    let radioList = '<legend>Choose room: </legend>';
+    roomList.forEach((room, index) => {
+        radioList += `
+                               <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="chosen_room" id="radio_room_${index}" value="${index}">
+                                     <label class="form-check-label" for="radio_room_${index}">
+                                        room: ${room.room} description: ${room.description}
+                                     </label>
+                               </div>
+                               `;
+    });
+    radioList += ` 
+                                   <span class="input-group-btn">
+                                        <button class="btn btn-success" autocomplete="off" id="register" onclick="joinRoom()">Join the room</button>
+                                   </span>
+                            `;
+    roomlistBlock.html(radioList).removeClass('hide');
+}
+
+function getList() {
     // A new feed has been published, create a new plugin handle and attach to it as a listener
-    var remoteFeed = null;
+    // $('#videocontainer').removeClass('hide');
     janus.attach(
         {
             plugin: "janus.plugin.videoroom",
             opaqueId: opaqueId,
             success: function (pluginHandle) {
-                debugger
+
                 remoteFeed = pluginHandle;
-                remoteFeed.simulcastStarted = false;
+                // remoteFeed.simulcastStarted = false;
                 Janus.log("Plugin attached! (" + remoteFeed.getPlugin() + ", id=" + remoteFeed.getId() + ")");
                 Janus.log("  -- This is a subscriber");
-                // We wait for the plugin to send us an offer
-                debugger
-                var listen = {
-                    "request": "join",
-                    "room": myroom,
-                    "ptype": "listener",
-                    "feed": +id,
-                    "private_id": +mypvtid
+                var list = {
+                    "request": "list",
                 };
-                console.log("Start subscribe: ", JSON.stringify(listen));
-                // In case you don't want to receive audio, video or data, even if the
-                // publisher is sending them, set the 'offer_audio', 'offer_video' or
-                // 'offer_data' properties to false (they're true by default), e.g.:
-                // 		listen["offer_video"] = false;
-                // For example, if the publisher is VP8 and this is Safari, let's avoid video
-                if (video !== "h264" && Janus.webRTCAdapter.browserDetails.browser === "safari") {
-                    if (video)
-                        video = video.toUpperCase()
-                    toastr.warning("Publisher is using " + video + ", but Safari doesn't support it: disabling video");
-                    listen["offer_video"] = false;
-                }
-                remoteFeed.send({"message": listen});
+                remoteFeed.send({
+                    message: list,
+                    success: function (result) {
+                        if (!('list' in result && result.list.length > 0)) {
+                            bootbox.alert("No available rooms");
+                            return;
+                        }
+
+                        roomList = result.list;
+                        const roomName = +getQueryStringValue("room");
+                        if (roomName) {
+                            const queryRoom = roomList.find(room => room.room === roomName);
+                            if (queryRoom) {
+                                getPublisher(queryRoom);
+                                return;
+                            } else {
+                                bootbox.alert("Wrong link! The room is absent in available rooms");
+                            }
+                        }
+                        prepareChoseRoomList();
+                    }
+                });
             },
             error: function (error) {
                 Janus.error("  -- Error attaching plugin...", error);
                 bootbox.alert("Error attaching plugin... " + error);
             },
             onmessage: function (msg, jsep) {
-                debugger
                 Janus.debug(" ::: Got a message (listener) :::");
                 Janus.debug(msg);
                 var event = msg["videoroom"];
@@ -187,9 +210,12 @@ function newRemoteFeed(id, display, audio, video) {
                 Janus.log("Janus says this WebRTC PeerConnection (feed #" + remoteFeed.rfindex + ") is " + (on ? "up" : "down") + " now");
             },
             onlocalstream: function (stream) {
+
                 // The subscriber stream is recvonly, we don't expect anything here
             },
             onremotestream: function (stream) {
+                debugger
+
                 Janus.debug("Remote feed #" + remoteFeed.rfindex);
                 var addButtons = false;
                 if ($('#remotevideo' + remoteFeed.rfindex).length === 0) {
@@ -255,6 +281,7 @@ function newRemoteFeed(id, display, audio, video) {
                 }
             },
             oncleanup: function () {
+
                 Janus.log(" ::: Got a cleanup notification (remote feed " + id + ") :::");
                 if (remoteFeed.spinner !== undefined && remoteFeed.spinner !== null)
                     remoteFeed.spinner.stop();
@@ -271,6 +298,39 @@ function newRemoteFeed(id, display, audio, video) {
                 $('#simulcast' + remoteFeed.rfindex).remove();
             }
         });
+}
+
+function newRemoteFeed(id, display, audio, video) {
+    debugger
+    // A new feed has been published, create a new plugin handle and attach to it as a listener
+    // $('#videocontainer').removeClass('hide');
+
+    // remoteFeed = pluginHandle;
+    // remoteFeed.simulcastStarted = false;
+    Janus.log("Plugin attached! (" + remoteFeed.getPlugin() + ", id=" + remoteFeed.getId() + ")");
+    Janus.log("  -- This is a subscriber");
+    // We wait for the plugin to send us an offer
+
+    var listen = {
+        "request": "join",
+        "room": myroom,
+        "ptype": "listener",
+        "feed": +id,
+        // "private_id": +mypvtid
+    };
+    // In case you don't want to receive audio, video or data, even if the
+    // publisher is sending them, set the 'offer_audio', 'offer_video' or
+    // 'offer_data' properties to false (they're true by default), e.g.:
+    // 		listen["offer_video"] = false;
+    // For example, if the publisher is VP8 and this is Safari, let's avoid video
+    if (video !== "h264" && Janus.webRTCAdapter.browserDetails.browser === "safari") {
+        if (video)
+            video = video.toUpperCase();
+        toastr.warning("Publisher is using " + video + ", but Safari doesn't support it: disabling video");
+        listen["offer_video"] = false;
+    }
+    remoteFeed.send({"message": listen});
+    $('#videocontainer').removeClass('hide');
 }
 
 // Helper to parse query string
@@ -401,4 +461,37 @@ function updateSimulcastButtons(feed, substream, temporal) {
         $('#tl' + index + '-1').removeClass('btn-primary btn-success').addClass('btn-primary');
         $('#tl' + index + '-0').removeClass('btn-primary btn-success').addClass('btn-primary');
     }
+}
+
+function getPublisher(room) {
+
+    myroom = +room.room;
+    var body = {
+        "request": "listparticipants",
+        "room": myroom
+    };
+    remoteFeed.send({
+        message: body,
+        success: function (result) {
+
+            const publisher = 'participants' in result ? result.participants[0] : null;
+            if (!publisher) {
+                bootbox.alert("No publishers in room!");
+                return;
+            }
+            newRemoteFeed(publisher.id, publisher.display, room.audiocodec, room.videocodec)
+        }
+    });
+}
+
+function joinRoom() {
+
+    const roomIndex = $('input[name=chosen_room]:checked').val();
+    if (roomIndex === undefined) {
+        bootbox.alert("Please, choose room!");
+        return;
+    }
+    $('#room_list').addClass('hide');
+    // bootbox.alert("room: " + roomIndex);
+    getPublisher(roomList[roomIndex]);
 }

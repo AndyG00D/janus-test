@@ -69,7 +69,7 @@ var janus = null;
 var sfutest = null;
 var opaqueId = "videoroomtest-" + Janus.randomString(12);
 
-var myroom = 1234;	// Demo room
+var myroom = null;	// Demo room
 var myusername = null;
 var myid = null;
 var mystream = null;
@@ -83,8 +83,7 @@ var doSimulcast = (getQueryStringValue("simulcast") === "yes" || getQueryStringV
 var doSimulcast2 = (getQueryStringValue("simulcast2") === "yes" || getQueryStringValue("simulcast2") === "true");
 
 // $(document).ready(function () {
-// Initialize the library (all console debuggers enabled)
-// debugger
+// Initialize the library (all console s enabled)
 Janus.init({
     debug: "all", callback: function () {
         // Use a button to start the demo
@@ -110,6 +109,7 @@ Janus.init({
                                 sfutest = pluginHandle;
                                 Janus.log("Plugin attached! (" + sfutest.getPlugin() + ", id=" + sfutest.getId() + ")");
                                 Janus.log("  -- This is a publisher/manager");
+
                                 // Prepare the username registration
                                 $('#videojoin').removeClass('hide').show();
                                 $('#registernow').removeClass('hide').show();
@@ -118,6 +118,16 @@ Janus.init({
                                 $('#start').removeAttr('disabled').html("Stop")
                                     .click(function () {
                                         $(this).attr('disabled', true);
+                                        sfutest.send({
+                                            message: {
+                                                "request": "destroy",
+                                                "room" : myroom,
+                                                "permanent": false,
+                                            },
+                                            success: (result) => {
+                                                console.log('destroy: ', result);
+                                            }
+                                        });
                                         janus.destroy();
                                     });
                             },
@@ -182,15 +192,19 @@ Janus.init({
                                 Janus.debug("Event: " + event);
                                 if (event) {
                                     if (event === "joined") {
-                                        debugger
+
                                         // Publisher/manager created, negotiate WebRTC and attach to existing feeds, if any
                                         myid = msg["id"];
                                         mypvtid = msg["private_id"];
 
-                                        info.html(
-                                            info.html() + '</br> <hr>' +
-                                            `<a target="_blank" href="${window.location.protocol}//${window.location.hostname}:${window.location.port}\/receiver.html?id=${myid}&mypvtid=${mypvtid}">open subscriber</a>`
-                                        );
+                                        // info.html(
+                                        //     info.html() + '</br> <hr>' +
+                                        //     `<a target="_blank" href="${window.location.protocol}//${window.location.hostname}:${window.location.port}\/receiver.html?id=${myid}&mypvtid=${mypvtid}">open subscriber</a>`
+                                        // );
+                                        const link = !window.location.port ? window.location.hostname : window.location.hostname + ':' + window.location.port;
+
+                                        $('#link_input').val(`${window.location.protocol}//${link}\/receiver.html?room=${msg["room"]}`);
+                                        $('#link').removeClass('hide');
 
                                         Janus.log("Successfully joined room " + msg["room"] + " with ID " + myid);
                                         publishOwnFeed(true);
@@ -418,15 +432,32 @@ function registerUsername() {
             $('#register').removeAttr('disabled').click(registerUsername);
             return;
         }
-        var register = {
-            request: "join",
-            room: myroom,
-            ptype: "publisher",
-            display: username,
-            notify_joining: true
+
+        body = {
+            "request": "create",
+            // "room" : <unique numeric ID, optional, chosen by plugin if missing>,
+            "publishers": 1,
+            "permanent": false,
+            "description": "Room of " + username,
+            "is_private": false,
         };
-        myusername = username;
-        sfutest.send({message: register});
+
+        sfutest.send({
+            message: body,
+            success: function (result) {
+                myroom = result.room;
+                var register = {
+                    request: "join",
+                    room: myroom,
+                    ptype: "publisher",
+                    display: username,
+                    close_pc: true,
+                    notify_joining: true
+                };
+                myusername = username;
+                sfutest.send({message: register});
+            }
+        });
     }
 }
 
@@ -497,13 +528,13 @@ function newRemoteFeed(id, display, audio, video) {
             plugin: "janus.plugin.videoroom",
             opaqueId: opaqueId,
             success: function (pluginHandle) {
-                debugger
+
                 remoteFeed = pluginHandle;
                 remoteFeed.simulcastStarted = false;
                 Janus.log("Plugin attached! (" + remoteFeed.getPlugin() + ", id=" + remoteFeed.getId() + ")");
                 Janus.log("  -- This is a subscriber");
                 // We wait for the plugin to send us an offer
-                debugger
+
                 var subscribe = {
                     request: "join",
                     room: myroom,
@@ -583,6 +614,7 @@ function newRemoteFeed(id, display, audio, video) {
                             // (obviously only works if the publisher offered them in the first place)
                             media: {audioSend: false, videoSend: false},	// We want recvonly audio/video
                             success: function (jsep) {
+
                                 Janus.debug("Got SDP!", jsep);
                                 var body = {request: "start", room: myroom};
                                 remoteFeed.send({message: body, jsep: jsep});
@@ -819,3 +851,18 @@ function updateSimulcastButtons(feed, substream, temporal) {
         $('#tl' + index + '-0').removeClass('btn-primary btn-success').addClass('btn-primary');
     }
 }
+
+function copyToClipboard(element) {
+    var $temp = $("<input>");
+    $("body").append($temp);
+    $temp.val($(element).val()).select();
+    document.execCommand("copy");
+    $temp.remove();
+}
+
+// window.addEventListener('beforeunload', (event) => {
+//   // Cancel the event as stated by the standard.
+//   event.preventDefault();
+//   // Chrome requires returnValue to be set.
+//   event.returnValue = '';
+// });

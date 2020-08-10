@@ -70,20 +70,27 @@
 <!--					</div>-->
 <!--				</div>-->
 <!--			</div>-->
-<!--			<div class="container" id="videojoin">-->
-<!--				<div class="row">-->
-<!--					<span class="label label-info" id="you"></span>-->
-<!--					<div class="col-md-12" id="controls">-->
-<!--						<div class="input-group margin-bottom-md" id="registernow">-->
-<!--							<span class="input-group-addon">@</span>-->
-<!--							<input autocomplete="off" class="form-control" type="text" placeholder="Choose a display name" id="username" onkeypress="return checkEnter(this, event);" />-->
-<!--							<span class="input-group-btn">-->
-<!--								<button class="btn btn-success" autocomplete="off" id="register">Join the room</button>-->
-<!--							</span>-->
-<!--						</div>-->
-<!--					</div>-->
-<!--				</div>-->
-<!--			</div>-->
+			<div class="container hide" id="videojoin">
+				<div class="row">
+					<span class="label label-info" id="you"></span>
+					<div class="col-md-12" id="controls">
+						<div class="input-group inline margin-bottom-md" id="registernow">
+							<input autocomplete="off" class="form-control" type="text"
+                                   placeholder="Choose a display name" id="username"/>
+							<input autocomplete="off" class="form-control" type="text" placeholder="Publisher ID" id="publisher_id"/>
+							<input autocomplete="off" class="form-control" type="text" placeholder="Private ID" id="private_id"/>
+							<span class="input-group-btn">
+								<button class="btn btn-success" autocomplete="off" id="register">Join the room</button>
+							</span>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<fieldset class="container hide" id="room_list">
+			</fieldset>
+
+
 			<div class="container" id="videos">
 				<div class="row">
 <!--					<div class="col-md-4">-->
@@ -111,7 +118,7 @@
 <!--							<div class="panel-body" id="videolocal"></div>-->
 <!--						</div>-->
 <!--					</div>-->
-					<div class="col-md-12">
+					<div class="col-md-12 hide" id="videocontainer">
 						<div class="panel panel-default">
 							<div class="panel-heading">
 								<h3 class="panel-title">Remote Video <span class="label label-info" id="remote1"></span></h3>
